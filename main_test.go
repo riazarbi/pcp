@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -496,8 +497,9 @@ func TestPerformance_LargeFiles(t *testing.T) {
 		t.Fatalf("Failed to create prompt file: %v", err)
 	}
 
+	outputFile := filepath.Join(tmpDir, "output.txt")
 	start := time.Now()
-	err = processPromptFile(promptFile, "", 500000, "xml")
+	err = processPromptFile(promptFile, outputFile, 500000, "xml")
 	duration := time.Since(start)
 
 	if err != nil {
@@ -604,5 +606,37 @@ func TestDelimiterStyles(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestErrorMethods(t *testing.T) {
+	// Test ErrFileNotFound.Error() method
+	err := ErrFileNotFound{File: "/path/to/missing/file.txt"}
+	expected := "file not found: /path/to/missing/file.txt"
+	if err.Error() != expected {
+		t.Errorf("Expected '%s', got '%s'", expected, err.Error())
+	}
+
+	// Test other error methods for coverage
+	binaryErr := ErrBinaryFile{File: "/path/to/binary.exe"}
+	expectedBinary := "binary file detected: /path/to/binary.exe"
+	if binaryErr.Error() != expectedBinary {
+		t.Errorf("Expected '%s', got '%s'", expectedBinary, binaryErr.Error())
+	}
+
+	circularErr := ErrCircularReference{File: "/path/to/circular.yml", Path: []string{"a.yml", "b.yml"}}
+	if !strings.Contains(circularErr.Error(), "circular reference detected") {
+		t.Errorf("Expected circular reference error message, got '%s'", circularErr.Error())
+	}
+
+	commandErr := ErrCommandFailed{Command: "false", Err: errors.New("exit 1")}
+	if !strings.Contains(commandErr.Error(), "command failed: false") {
+		t.Errorf("Expected command failed error message, got '%s'", commandErr.Error())
+	}
+
+	maxWordsErr := ErrMaxWordsExceeded{Current: 1000, Max: 500}
+	expected = "maximum word count exceeded: 1000 > 500"
+	if maxWordsErr.Error() != expected {
+		t.Errorf("Expected '%s', got '%s'", expected, maxWordsErr.Error())
 	}
 }

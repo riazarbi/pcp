@@ -144,19 +144,21 @@ func compileOutput(content CompiledContent, delimiterStyle string) (string, erro
 	var result strings.Builder
 
 	for i, section := range content.Sections {
+		// Add section header (if any)
 		if delimiterStyle != "none" {
-			// Add section header, but skip leading newline for first section
 			if i == 0 {
+				// First section: remove leading newline from delimiter
 				result.WriteString(strings.TrimLeft(formatSectionHeader(section.Source, delimiterStyle), "\n"))
 			} else {
 				result.WriteString(formatSectionHeader(section.Source, delimiterStyle))
 			}
-		} else if i > 0 {
-			// For "none" style, still add newline separation between sections
-			result.WriteString("\n")
 		}
+
+		// Add the normalized content (always ends with exactly one newline)
 		result.WriteString(section.Content)
 	}
 
-	return result.String(), nil
+	// Ensure output ends with exactly one newline to prevent shell % character
+	output := strings.TrimRight(result.String(), "\n") + "\n"
+	return output, nil
 }

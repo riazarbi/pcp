@@ -54,7 +54,7 @@ func processFileOperation(filePath string, ctx *ProcessingContext) (ContentSecti
 
 	return ContentSection{
 		Source:  filePath,
-		Content: contentStr,
+		Content: normalizeContent(contentStr),
 		Type:    FileOp,
 	}, nil
 }
@@ -103,7 +103,7 @@ func processPromptOperation(promptPath string, ctx *ProcessingContext) (ContentS
 
 	return ContentSection{
 		Source:  promptPath,
-		Content: combinedContent.String(),
+		Content: normalizeContent(combinedContent.String()),
 		Type:    PromptOp,
 	}, nil
 }
@@ -129,7 +129,7 @@ func processCommandOperation(command string, ctx *ProcessingContext) (ContentSec
 
 	return ContentSection{
 		Source:  command,
-		Content: outputStr,
+		Content: normalizeContent(outputStr),
 		Type:    CommandOp,
 	}, nil
 }
@@ -142,7 +142,7 @@ func processTextOperation(text string, ctx *ProcessingContext) (ContentSection, 
 
 	return ContentSection{
 		Source:  "text",
-		Content: text,
+		Content: normalizeContent(text),
 		Type:    TextOp,
 	}, nil
 }
@@ -154,13 +154,20 @@ func formatSectionHeader(source, delimiterStyle string) string {
 	case "minimal":
 		return fmt.Sprintf("\n=== PCP SOURCE: %s ===\n", source)
 	case "none":
-		return "\n" // Still add separation between sections
+		return "" // No delimiters, content will flow together with their normalized newlines
 	case "full":
 		return fmt.Sprintf("\n----------------------------------\nBEGIN: %s\n----------------------------------\n", source)
 	default:
 		// Default to xml style for unknown styles
 		return fmt.Sprintf("\n<!-- pcp-source: %s -->\n", source)
 	}
+}
+
+func normalizeContent(content string) string {
+	// Trim all whitespace from the end, then ensure exactly one trailing newline
+	return strings.TrimRightFunc(content, func(r rune) bool {
+		return r == '\n' || r == '\r' || r == ' ' || r == '\t'
+	}) + "\n"
 }
 
 func countWords(text string) int {
