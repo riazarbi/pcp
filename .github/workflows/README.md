@@ -1,6 +1,6 @@
 # GitHub Workflows
 
-This project uses GitHub Actions for automated CI/CD. The workflow system includes three main workflows:
+This project uses GitHub Actions for automated CI/CD. The workflow system includes two main workflows:
 
 ## Workflows
 
@@ -16,7 +16,7 @@ This project uses GitHub Actions for automated CI/CD. The workflow system includ
 - Tests cross-platform builds (Linux, macOS, Windows)
 - Performs basic functionality test on each platform
 
-### 2. Auto Tag (`auto-tag.yml`)
+### 2. Auto Release (`auto-release.yml`)
 **Triggers:** Push to `main`, Manual dispatch
 
 **What it does:**
@@ -25,36 +25,30 @@ This project uses GitHub Actions for automated CI/CD. The workflow system includ
   - **Minor**: `feat:`, `feature:` commits
   - **Patch**: `fix:`, `chore:`, `docs:`, etc.
 - Creates semantic version tags (v1.0.0 format)
-- Can be manually triggered with custom version bump
-- Skips tagging if no version-worthy changes detected
-
-### 3. Release (`release.yml`)
-**Triggers:** Push of version tags (`v*`)
-
-**What it does:**
 - Runs full test suite before release
 - Builds cross-platform binaries:
   - Linux (amd64, arm64)
   - macOS (amd64, arm64)
   - Windows (amd64, arm64)
-- Generates SHA256 checksums
+- Generates SHA256 checksums and install scripts
 - Creates GitHub release with:
   - Auto-generated release notes from commits
   - Binary attachments for all platforms
-  - Installation instructions
+  - One-liner installation instructions
+- Can be manually triggered with custom version bump
+- Skips release if no version-worthy changes detected
 
 ## Release Process
 
 ### Automatic Release
 1. Push commits to `main` branch
-2. Auto-tag workflow detects changes and creates version tag
-3. Release workflow triggers on new tag
-4. Binaries are built and GitHub release is created
+2. Auto Release workflow detects changes, creates tag, and builds release
+3. Binaries are built and GitHub release is created automatically
 
 ### Manual Release
-1. Go to Actions → Auto Tag → Run workflow
+1. Go to Actions → Auto Release → Run workflow
 2. Select version bump type (patch/minor/major)
-3. Release workflow triggers automatically after tag creation
+3. Release is created immediately in the same workflow
 
 ## Commit Message Conventions
 
