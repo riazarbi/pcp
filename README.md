@@ -18,12 +18,19 @@ PCP is a Go-based CLI tool that processes YAML prompt files to compile content f
 
 ## Installation
 
+### Go Install
 ```bash
 go install github.com/riazarbi/pcp@latest
 ```
 
-Or build from source:
+### Download Binary
+Download pre-compiled binaries from the [releases page](https://github.com/riazarbi/pcp/releases):
 
+- Linux (amd64, arm64)
+- macOS (amd64, arm64) 
+- Windows (amd64, arm64)
+
+### Build from Source
 ```bash
 git clone https://github.com/riazarbi/pcp.git
 cd pcp
@@ -243,6 +250,17 @@ This project follows Go best practices with:
 - No mocking - all tests use actual files, commands, and YAML processing  
 - Comprehensive error handling and edge case coverage
 - Cross-platform compatibility testing
+- Automated CI/CD with GitHub Actions
+- Semantic versioning with automated releases
+
+### CI/CD Pipeline
+
+The project uses GitHub Actions for:
+- **Continuous Integration**: Tests, linting, and coverage validation on every push/PR
+- **Automated Releases**: Cross-platform binary builds triggered by version tags
+- **Auto-tagging**: Semantic version tagging based on conventional commit messages
+
+See [.github/workflows/README.md](.github/workflows/README.md) for detailed workflow documentation.
 
 ## License
 
