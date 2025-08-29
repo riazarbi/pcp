@@ -697,7 +697,7 @@ func TestOperationValidation(t *testing.T) {
 		t.Errorf("Expected operation validation error, got: %v", err)
 	}
 
-	// Test multiple operations  
+	// Test multiple operations
 	promptFile2 := filepath.Join(tempDir, "multi_op.yml")
 	promptContent2 := `prompt:
   - file: "test.txt"

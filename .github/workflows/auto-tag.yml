@@ -1,0 +1,143 @@
+---
+name: Auto Tag
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: 'Version bump type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+
+jobs:
+  auto-tag:
+    name: Auto Tag Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get latest tag
+        id: latest_tag
+        run: |
+          # Get the latest tag, default to v0.0.0 if none exists
+          LATEST_TAG=$(git tag --sort=-version:refname | head -n 1)
+          if [ -z "$LATEST_TAG" ]; then
+            LATEST_TAG="v0.0.0"
+          fi
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "Latest tag: $LATEST_TAG"
+
+      - name: Determine version bump
+        id: version_bump
+        run: |
+          # Check if this is a manual workflow dispatch
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BUMP_TYPE="${{ github.event.inputs.version_bump }}"
+          else
+            # Auto-determine from commit messages
+            COMMITS=$(git log ${{ steps.latest_tag.outputs.latest_tag }}..HEAD \
+              --pretty=format:"%s")
+
+            if echo "$COMMITS" | grep -qi "BREAKING CHANGE\|!:" || \
+               echo "$COMMITS" | grep -qE "^[a-zA-Z]+(\(.+\))?!:"; then
+              BUMP_TYPE="major"
+            elif echo "$COMMITS" | grep -qiE "^feat(\(.+\))?:" || \
+                 echo "$COMMITS" | grep -qi "^feature"; then
+              BUMP_TYPE="minor"
+            elif echo "$COMMITS" | \
+                 grep -qiE "^(fix|patch|chore|docs|style|refactor|test|build|ci)(\(.+\))?:" || \
+                 [ -n "$COMMITS" ]; then
+              BUMP_TYPE="patch"
+            else
+              echo "No version-worthy changes found, skipping tag creation"
+              exit 0
+            fi
+          fi
+
+          echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+          echo "Version bump type: $BUMP_TYPE"
+
+      - name: Calculate new version
+        id: new_version
+        run: |
+          LATEST_TAG="${{ steps.latest_tag.outputs.latest_tag }}"
+          BUMP_TYPE="${{ steps.version_bump.outputs.bump_type }}"
+
+          # Remove 'v' prefix for calculation
+          VERSION=${LATEST_TAG#v}
+
+          # Split version into components
+          IFS='.' read -ra VERSION_PARTS <<< "$VERSION"
+          MAJOR=${VERSION_PARTS[0]}
+          MINOR=${VERSION_PARTS[1]}
+          PATCH=${VERSION_PARTS[2]}
+
+          # Bump version based on type
+          case $BUMP_TYPE in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+
+          NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "New version: $NEW_VERSION"
+
+      - name: Check if tag already exists
+        id: tag_exists
+        run: |
+          NEW_VERSION="${{ steps.new_version.outputs.new_version }}"
+          if git rev-parse --verify "refs/tags/$NEW_VERSION" >/dev/null 2>&1; then
+            echo "Tag $NEW_VERSION already exists, skipping"
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create and push tag
+        if: steps.tag_exists.outputs.exists == 'false'
+        run: |
+          NEW_VERSION="${{ steps.new_version.outputs.new_version }}"
+
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Create and push tag
+          git tag -a "$NEW_VERSION" -m "Release $NEW_VERSION"
+          git push origin "$NEW_VERSION"
+
+          echo "Created and pushed tag: $NEW_VERSION"
+
+      - name: Output result
+        run: |
+          if [ "${{ steps.tag_exists.outputs.exists }}" = "true" ]; then
+            echo "Tag already exists, no action taken"
+          else
+            echo "Successfully created tag: ${{ steps.new_version.outputs.new_version }}"
+            echo "This will trigger the release workflow"
+          fi
