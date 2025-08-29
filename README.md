@@ -45,9 +45,9 @@ pcp -f my-prompt.yml -o compiled-context.txt
 pcp -f my-prompt.yml -max-words 50000
 
 # Use different delimiter styles
-pcp -f my-prompt.yml --delimiter-style=none    # No delimiters, clean content
-pcp -f my-prompt.yml --delimiter-style=minimal # Simple delimiters
-pcp -f my-prompt.yml --delimiter-style=full    # Verbose original format
+pcp -f my-prompt.yml -delimiter-style=none    # No delimiters, clean content
+pcp -f my-prompt.yml -delimiter-style=minimal # Simple delimiters
+pcp -f my-prompt.yml -delimiter-style=full    # Verbose original format
 ```
 
 ### Safe Piping Patterns
@@ -120,7 +120,7 @@ Content is compiled with formatted section headers (default XML style, agent-fri
 
 ### Delimiter Styles
 
-Control output formatting with `--delimiter-style`:
+Control output formatting with `-delimiter-style`:
 
 - **xml** (default): `<!-- pcp-source: filename.txt -->` - Agent-friendly, won't interfere with content parsing
 - **minimal**: `=== PCP SOURCE: filename.txt ===` - Visible but less noisy than full style  
@@ -239,7 +239,7 @@ echo "Clean up with: xc clean"
 ## Development
 
 This project follows Go best practices with:
-- 100% test coverage using real file system operations
+- 80% test coverage using real file system operations
 - No mocking - all tests use actual files, commands, and YAML processing  
 - Comprehensive error handling and edge case coverage
 - Cross-platform compatibility testing
