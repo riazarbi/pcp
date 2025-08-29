@@ -75,9 +75,13 @@ jobs:
           GOOS=windows GOARCH=arm64 go build \
             -ldflags="-s -w" -o release/pcp-windows-arm64.exe .
 
-          # Create checksums
+          # Copy install scripts to release directory
+          cp install.sh release/
+          cp install.ps1 release/
+
+          # Create checksums (include install scripts)
           cd release
-          sha256sum * > checksums.txt
+          sha256sum pcp-* > checksums.txt
           cd ..
 
       - name: Generate release notes
@@ -100,13 +104,27 @@ jobs:
           echo "" >> release_notes.md
           echo "## Installation" >> release_notes.md
           echo "" >> release_notes.md
+          echo "### Quick Install (Recommended)" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "**Linux/macOS:**" >> release_notes.md
+          echo "\`\`\`bash" >> release_notes.md
+          echo "curl -fsSL https://github.com/riazarbi/pcp/releases/latest/download/install.sh | sh" \
+            >> release_notes.md
+          echo "\`\`\`" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "**Windows PowerShell:**" >> release_notes.md
+          echo "\`\`\`powershell" >> release_notes.md
+          echo "iwr https://github.com/riazarbi/pcp/releases/latest/download/install.ps1 | iex" \
+            >> release_notes.md
+          echo "\`\`\`" >> release_notes.md
+          echo "" >> release_notes.md
           echo "### Go Install" >> release_notes.md
           echo "\`\`\`bash" >> release_notes.md
           echo "go install github.com/riazarbi/pcp@${{ steps.tag.outputs.tag }}" \
             >> release_notes.md
           echo "\`\`\`" >> release_notes.md
           echo "" >> release_notes.md
-          echo "### Download Binary" >> release_notes.md
+          echo "### Manual Download" >> release_notes.md
           echo "Download the appropriate binary for your platform from the assets below." \
             >> release_notes.md
           echo "" >> release_notes.md
@@ -117,6 +135,8 @@ jobs:
           echo "" >> release_notes.md
           echo "## Verification" >> release_notes.md
           echo "All binaries are provided with SHA256 checksums in \`checksums.txt\`" \
+            >> release_notes.md
+          echo "The install scripts automatically verify checksums when available." \
             >> release_notes.md
 
           # Set output for use in release step
@@ -133,6 +153,8 @@ jobs:
           files: |
             release/pcp-*
             release/checksums.txt
+            release/install.sh
+            release/install.ps1
           draft: false
           prerelease: false
         env:
