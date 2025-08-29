@@ -18,19 +18,40 @@ PCP is a Go-based CLI tool that processes YAML prompt files to compile content f
 
 ## Installation
 
-### Go Install
+### Quick Install (Recommended)
+
+**Linux/macOS:**
+```bash
+curl -fsSL https://github.com/riazarbi/pcp/releases/latest/download/install.sh | sh
+```
+
+**Windows PowerShell:**
+```powershell
+iwr https://github.com/riazarbi/pcp/releases/latest/download/install.ps1 | iex
+```
+
+The install scripts automatically:
+- Detect your platform and architecture
+- Download the latest release
+- Verify checksums for security
+- Install to an appropriate location
+- Add to PATH (with permission)
+
+### Alternative Methods
+
+#### Go Install
 ```bash
 go install github.com/riazarbi/pcp@latest
 ```
 
-### Download Binary
+#### Manual Download
 Download pre-compiled binaries from the [releases page](https://github.com/riazarbi/pcp/releases):
 
 - Linux (amd64, arm64)
 - macOS (amd64, arm64) 
 - Windows (amd64, arm64)
 
-### Build from Source
+#### Build from Source
 ```bash
 git clone https://github.com/riazarbi/pcp.git
 cd pcp
