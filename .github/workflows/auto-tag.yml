@@ -34,17 +34,28 @@ jobs:
       - name: Get latest tag
         id: latest_tag
         run: |
-          # Get the latest tag, default to v0.0.0 if none exists
+          # Get the latest tag, check if any tags exist
           LATEST_TAG=$(git tag --sort=-version:refname | head -n 1)
           if [ -z "$LATEST_TAG" ]; then
-            LATEST_TAG="v0.0.0"
+            echo "no_prior_tags=true" >> $GITHUB_OUTPUT
+            echo "latest_tag=" >> $GITHUB_OUTPUT
+            echo "No prior tags found - this will be the first release"
+          else
+            echo "no_prior_tags=false" >> $GITHUB_OUTPUT
+            echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+            echo "Latest tag: $LATEST_TAG"
           fi
-          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
-          echo "Latest tag: $LATEST_TAG"
 
       - name: Determine version bump
         id: version_bump
         run: |
+          # Check if this is the first release
+          if [ "${{ steps.latest_tag.outputs.no_prior_tags }}" = "true" ]; then
+            echo "bump_type=initial" >> $GITHUB_OUTPUT
+            echo "Version bump type: initial (first release)"
+            exit 0
+          fi
+
           # Check if this is a manual workflow dispatch
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             BUMP_TYPE="${{ github.event.inputs.version_bump }}"
@@ -75,17 +86,26 @@ jobs:
       - name: Calculate new version
         id: new_version
         run: |
-          LATEST_TAG="${{ steps.latest_tag.outputs.latest_tag }}"
           BUMP_TYPE="${{ steps.version_bump.outputs.bump_type }}"
 
+          # Handle first release
+          if [ "$BUMP_TYPE" = "initial" ]; then
+            NEW_VERSION="v1.0.0"
+            echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+            echo "New version: $NEW_VERSION (initial release)"
+            exit 0
+          fi
+
+          # Handle subsequent releases
+          LATEST_TAG="${{ steps.latest_tag.outputs.latest_tag }}"
           # Remove 'v' prefix for calculation
           VERSION=${LATEST_TAG#v}
 
           # Split version into components
           IFS='.' read -ra VERSION_PARTS <<< "$VERSION"
-          MAJOR=${VERSION_PARTS[0]}
-          MINOR=${VERSION_PARTS[1]}
-          PATCH=${VERSION_PARTS[2]}
+          MAJOR=${VERSION_PARTS[0]:-0}
+          MINOR=${VERSION_PARTS[1]:-0}
+          PATCH=${VERSION_PARTS[2]:-0}
 
           # Bump version based on type
           case $BUMP_TYPE in
