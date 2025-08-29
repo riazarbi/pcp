@@ -9,15 +9,15 @@ BINARY_NAME="pcp"
 
 # Print functions (simplified for compatibility)
 print_info() {
-    echo "[INFO] $1"
+    echo "[INFO] $1" >&2
 }
 
 print_success() {
-    echo "[SUCCESS] $1"  
+    echo "[SUCCESS] $1" >&2
 }
 
 print_warning() {
-    echo "[WARNING] $1"
+    echo "[WARNING] $1" >&2
 }
 
 print_error() {
@@ -98,6 +98,15 @@ download_binary() {
         exit 1
     fi
     
+    # Verify the file was actually downloaded
+    if [ ! -f "$binary_path" ]; then
+        print_error "Binary file was not created: $binary_path"
+        rm -rf "$tmp_dir"
+        exit 1
+    fi
+    
+    print_info "Downloaded binary to: $binary_path"
+    
     # Download checksums for verification
     print_info "Downloading checksums for verification..."
     if ! curl -fsSL "$checksums_url" -o "$checksums_path"; then
@@ -162,7 +171,10 @@ install_binary() {
     
     # Copy and make executable
     print_info "Installing to: $install_path"
-    cp "$binary_path" "$install_path"
+    if ! cp "$binary_path" "$install_path"; then
+        print_error "Failed to copy binary to $install_path"
+        exit 1
+    fi
     chmod +x "$install_path"
     
     # Check if install directory is in PATH
