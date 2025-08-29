@@ -136,6 +136,10 @@ jobs:
         id: tag_exists
         run: |
           NEW_VERSION="${{ steps.new_version.outputs.new_version }}"
+          
+          # Fetch all remote tags to check for existence
+          git fetch --tags
+          
           if git rev-parse --verify "refs/tags/$NEW_VERSION" >/dev/null 2>&1; then
             echo "Tag $NEW_VERSION already exists, skipping release"
             echo "exists=true" >> $GITHUB_OUTPUT
