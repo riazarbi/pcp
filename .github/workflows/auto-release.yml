@@ -164,19 +164,6 @@ jobs:
             exit 1
           fi
 
-      - name: Create tag
-        if: steps.tag_exists.outputs.exists == 'false'
-        run: |
-          NEW_VERSION="${{ steps.new_version.outputs.new_version }}"
-
-          # Configure git
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Create tag
-          git tag -a "$NEW_VERSION" -m "Release $NEW_VERSION"
-
-          echo "Created tag: $NEW_VERSION"
 
       - name: Build cross-platform binaries
         if: steps.tag_exists.outputs.exists == 'false'
@@ -282,12 +269,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Push tag
-        if: steps.tag_exists.outputs.exists == 'false'
-        run: |
-          NEW_VERSION="${{ steps.new_version.outputs.new_version }}"
-          git push origin "$NEW_VERSION"
-          echo "Pushed tag: $NEW_VERSION"
 
       - name: Output result
         run: |
