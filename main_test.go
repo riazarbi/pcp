@@ -619,7 +619,7 @@ func TestErrorMethods(t *testing.T) {
 
 	// Test other error methods for coverage
 	binaryErr := ErrBinaryFile{File: "/path/to/binary.exe"}
-	expectedBinary := "binary file detected: /path/to/binary.exe"
+	expectedBinary := "cannot process binary file: /path/to/binary.exe"
 	if binaryErr.Error() != expectedBinary {
 		t.Errorf("Expected '%s', got '%s'", expectedBinary, binaryErr.Error())
 	}
@@ -630,13 +630,88 @@ func TestErrorMethods(t *testing.T) {
 	}
 
 	commandErr := ErrCommandFailed{Command: "false", Err: errors.New("exit 1")}
-	if !strings.Contains(commandErr.Error(), "command failed: false") {
+	if !strings.Contains(commandErr.Error(), "command execution failed: false") {
 		t.Errorf("Expected command failed error message, got '%s'", commandErr.Error())
 	}
 
-	maxWordsErr := ErrMaxWordsExceeded{Current: 1000, Max: 500}
-	expected = "maximum word count exceeded: 1000 > 500"
-	if maxWordsErr.Error() != expected {
-		t.Errorf("Expected '%s', got '%s'", expected, maxWordsErr.Error())
+	wordLimitErr := ErrWordLimitExceeded{Current: 1000, Limit: 500}
+	expectedLimit := "compiled output (1000 words) exceeds maximum word limit (500 words)"
+	if wordLimitErr.Error() != expectedLimit {
+		t.Errorf("Expected '%s', got '%s'", expectedLimit, wordLimitErr.Error())
+	}
+}
+
+func TestCommandFailure(t *testing.T) {
+	// Create a temp directory for this test
+	tempDir, err := os.MkdirTemp("", "pcp_test_command_fail")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create a prompt file with a command that will fail
+	promptFile := filepath.Join(tempDir, "test.yml")
+	promptContent := `prompt:
+  - command: "exit 2"  # Command that exits with code 2 (failure)
+`
+
+	if err := os.WriteFile(promptFile, []byte(promptContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Test that command failure is properly handled
+	err = processPromptFile(promptFile, "", 128000, "xml")
+	if err == nil {
+		t.Error("Expected error for failing command, got nil")
+	}
+
+	// Check that it's the right type of error
+	var cmdErr ErrCommandFailed
+	if !errors.As(err, &cmdErr) {
+		t.Errorf("Expected ErrCommandFailed, got %T: %v", err, err)
+	}
+}
+
+func TestOperationValidation(t *testing.T) {
+	// Create a temp directory for this test
+	tempDir, err := os.MkdirTemp("", "pcp_test_operation_validation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Test empty operation
+	promptFile := filepath.Join(tempDir, "empty_op.yml")
+	promptContent := `prompt:
+  - {}  # Empty operation
+`
+	if err := os.WriteFile(promptFile, []byte(promptContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	err = processPromptFile(promptFile, "", 128000, "xml")
+	if err == nil {
+		t.Error("Expected error for empty operation, got nil")
+	}
+	if err != nil && !strings.Contains(err.Error(), "operation must specify exactly one of") {
+		t.Errorf("Expected operation validation error, got: %v", err)
+	}
+
+	// Test multiple operations  
+	promptFile2 := filepath.Join(tempDir, "multi_op.yml")
+	promptContent2 := `prompt:
+  - file: "test.txt"
+    text: "some text"  # Multiple operations in one
+`
+	if err := os.WriteFile(promptFile2, []byte(promptContent2), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	err = processPromptFile(promptFile2, "", 128000, "xml")
+	if err == nil {
+		t.Error("Expected error for multiple operations, got nil")
+	}
+	if err != nil && !strings.Contains(err.Error(), "operation must specify exactly one of") {
+		t.Errorf("Expected operation validation error, got: %v", err)
 	}
 }
