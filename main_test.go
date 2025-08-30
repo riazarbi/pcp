@@ -639,6 +639,13 @@ func TestErrorMethods(t *testing.T) {
 	if wordLimitErr.Error() != expectedLimit {
 		t.Errorf("Expected '%s', got '%s'", expectedLimit, wordLimitErr.Error())
 	}
+
+	// Test ErrInvalidYAML
+	yamlErr := ErrInvalidYAML{File: "test.yml", Err: errors.New("syntax error")}
+	expectedYaml := "invalid YAML in file test.yml: syntax error"
+	if yamlErr.Error() != expectedYaml {
+		t.Errorf("Expected '%s', got '%s'", expectedYaml, yamlErr.Error())
+	}
 }
 
 func TestCommandFailure(t *testing.T) {
@@ -713,5 +720,323 @@ func TestOperationValidation(t *testing.T) {
 	}
 	if err != nil && !strings.Contains(err.Error(), "operation must specify exactly one of") {
 		t.Errorf("Expected operation validation error, got: %v", err)
+	}
+}
+
+func TestRunDemo(t *testing.T) {
+	// Create a temporary directory for the test
+	tempDir, err := os.MkdirTemp("", "pcp_demo_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Change to temp directory
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(originalDir)
+
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatal(err)
+	}
+
+	// Run the demo
+	err = runDemo()
+	if err != nil {
+		t.Fatalf("runDemo() failed: %v", err)
+	}
+
+	// Verify demo directory was created
+	if _, err := os.Stat("demo"); os.IsNotExist(err) {
+		t.Error("Demo directory was not created")
+	}
+
+	// Verify demo files were created
+	expectedFiles := []string{
+		"demo/intro.md",
+		"demo/sample.txt",
+		"demo/nested.yml",
+		"demo/main.yml",
+	}
+
+	for _, file := range expectedFiles {
+		if _, err := os.Stat(file); os.IsNotExist(err) {
+			t.Errorf("Expected demo file %s was not created", file)
+		}
+	}
+
+	// Verify file contents contain expected elements
+	content, err := os.ReadFile("demo/intro.md")
+	if err != nil {
+		t.Fatalf("Failed to read demo/intro.md: %v", err)
+	}
+	if !strings.Contains(string(content), "PCP Demo") {
+		t.Error("demo/intro.md should contain 'PCP Demo'")
+	}
+
+	content, err = os.ReadFile("demo/main.yml")
+	if err != nil {
+		t.Fatalf("Failed to read demo/main.yml: %v", err)
+	}
+	if !strings.Contains(string(content), "prompt:") {
+		t.Error("demo/main.yml should contain 'prompt:'")
+	}
+	if !strings.Contains(string(content), "file: \"intro.md\"") {
+		t.Error("demo/main.yml should reference intro.md")
+	}
+}
+
+func TestDemoSubcommand(t *testing.T) {
+	// Create a temporary directory for the test
+	tempDir, err := os.MkdirTemp("", "pcp_demo_main_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Change to temp directory
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(originalDir)
+
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatal(err)
+	}
+
+	// Build the binary first
+	binaryPath := filepath.Join(originalDir, "pcp_test")
+	buildCmd := exec.Command("go", "build", "-o", binaryPath, ".")
+	buildCmd.Dir = originalDir
+	if err := buildCmd.Run(); err != nil {
+		t.Fatalf("Failed to build binary: %v", err)
+	}
+	defer os.Remove(binaryPath)
+
+	// Test demo subcommand via binary execution
+	cmd := exec.Command(binaryPath, "demo")
+	cmd.Dir = tempDir
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err = cmd.Run()
+	if err != nil {
+		t.Fatalf("Demo command failed: %v\nStdout: %s\nStderr: %s", err, stdout.String(), stderr.String())
+	}
+
+	// Check that demo files were created
+	if _, err := os.Stat("demo/main.yml"); os.IsNotExist(err) {
+		t.Error("Demo command should have created demo/main.yml")
+	}
+
+	// Check output contains expected messages
+	stderrStr := stderr.String()
+	if !strings.Contains(stderrStr, "Demo completed successfully.") {
+		t.Error("Expected 'Demo completed successfully.' in stderr output")
+	}
+
+	// Check stdout contains the compiled output
+	stdoutStr := stdout.String()
+	if !strings.Contains(stdoutStr, "<!-- pcp-source:") {
+		t.Error("Expected XML delimiters in demo output")
+	}
+	if !strings.Contains(stdoutStr, "PCP Demo") {
+		t.Error("Expected demo content in stdout")
+	}
+}
+
+func TestProcessPromptFileEdgeCases(t *testing.T) {
+	// Test different delimiter styles with edge cases
+	tests := []struct {
+		name            string
+		delimiterStyle  string
+		expectedPattern string
+	}{
+		{"xml style", "xml", "<!-- pcp-source:"},
+		{"minimal style", "minimal", "=== PCP SOURCE:"},
+		{"full style", "full", "BEGIN:"},
+		{"none style", "none", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testDir, err := os.MkdirTemp("", "pcp_test_edge_cases")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.RemoveAll(testDir)
+
+			promptContent := `prompt:
+  - text: "Test content"`
+			promptFile := filepath.Join(testDir, "test.yml")
+			if err := os.WriteFile(promptFile, []byte(promptContent), 0644); err != nil {
+				t.Fatalf("Failed to write test file: %v", err)
+			}
+
+			outputFile := filepath.Join(testDir, "output.txt")
+			err = processPromptFile(promptFile, outputFile, 128000, tt.delimiterStyle)
+			if err != nil {
+				t.Errorf("processPromptFile failed: %v", err)
+			}
+
+			if tt.expectedPattern != "" {
+				content, err := os.ReadFile(outputFile)
+				if err != nil {
+					t.Fatalf("Failed to read output: %v", err)
+				}
+				if !strings.Contains(string(content), tt.expectedPattern) {
+					t.Errorf("Expected pattern %q not found in output", tt.expectedPattern)
+				}
+			}
+		})
+	}
+}
+
+func TestValidatePromptFileStructureErrors(t *testing.T) {
+	// Test various YAML structure validation errors
+	tests := []struct {
+		name    string
+		content string
+		wantErr bool
+	}{
+		{"empty file", "", true},
+		{"invalid yaml", "invalid: yaml: content:", true},
+		{"no prompt key", "other: value", true},
+		{"prompt not array", "prompt: 'not an array'", true},
+		{"empty prompt array", "prompt: []", false},
+		{"invalid operation", "prompt:\n  - invalid: operation", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testDir, err := os.MkdirTemp("", "pcp_test_validation_errors")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.RemoveAll(testDir)
+
+			promptFile := filepath.Join(testDir, "test.yml")
+			if err := os.WriteFile(promptFile, []byte(tt.content), 0644); err != nil {
+				t.Fatalf("Failed to write test file: %v", err)
+			}
+
+			ctx := NewProcessingContext(promptFile, 128000, "xml")
+			err = validatePromptFileStructure(promptFile, ctx)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validatePromptFileStructure() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestCountWordsEdgeCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected int
+	}{
+		{"empty string", "", 0},
+		{"only whitespace", "   \n\t  ", 0},
+		{"single word", "word", 1},
+		{"multiple spaces", "word1    word2", 2},
+		{"mixed whitespace", "word1\n\tword2   word3", 3},
+		{"unicode characters", "café naïve résumé", 3},
+		{"numbers and symbols", "test123 @symbol #hashtag", 3},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := countWords(tt.input)
+			if result != tt.expected {
+				t.Errorf("countWords(%q) = %d, want %d", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestFormatSectionHeaderEdgeCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		source   string
+		style    string
+		expected string
+	}{
+		{"xml with special chars", "file with spaces.txt", "xml", "<!-- pcp-source: file with spaces.txt -->"},
+		{"minimal with long source", "very/long/path/to/file.txt", "minimal", "=== PCP SOURCE: very/long/path/to/file.txt ==="},
+		{"full with command", "git status --porcelain", "full", "BEGIN: git status --porcelain"},
+		{"none style", "any-source", "none", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := formatSectionHeader(tt.source, tt.style)
+			if !strings.Contains(result, tt.expected) {
+				t.Errorf("formatSectionHeader(%q, %q) = %q, should contain %q", tt.source, tt.style, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestErrorTypeCoverage(t *testing.T) {
+	// Test creating all error types to improve coverage of error methods
+	testDir, err := os.MkdirTemp("", "pcp_test_errors")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(testDir)
+
+	// Test ErrWordLimitExceeded
+	err = ErrWordLimitExceeded{
+		Current: 100,
+		Limit:   50,
+	}
+	expected := "compiled output (100 words) exceeds maximum word limit (50 words)"
+	if err.Error() != expected {
+		t.Errorf("ErrWordLimitExceeded.Error() = %q, want %q", err.Error(), expected)
+	}
+
+	// Test ErrInvalidYAML - this should now be covered
+	invalidYaml := "invalid: yaml: [unclosed"
+	yamlFile := filepath.Join(testDir, "invalid.yml")
+	os.WriteFile(yamlFile, []byte(invalidYaml), 0644)
+
+	_, err2 := parsePromptFile(yamlFile)
+	if err2 == nil {
+		t.Error("Expected error parsing invalid YAML")
+	}
+}
+
+func TestResolvePathEdgeCases(t *testing.T) {
+	testDir, err := os.MkdirTemp("", "pcp_test_resolve_path")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(testDir)
+
+	// Test with different base paths
+	tests := []struct {
+		name     string
+		basePath string
+		target   string
+		wantAbs  bool
+	}{
+		{"relative to dir", testDir, "test.txt", true},
+		{"absolute target", testDir, filepath.Join(testDir, "abs.txt"), true},
+		{"dot relative", testDir, "./rel.txt", true},
+		{"parent relative", testDir, "../up.txt", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := NewProcessingContext(tt.basePath, 128000, "xml")
+			result := ctx.ResolvePath(tt.target)
+			if tt.wantAbs && !filepath.IsAbs(result) {
+				t.Errorf("ResolvePath(%q, %q) = %q, expected absolute path", tt.basePath, tt.target, result)
+			}
+		})
 	}
 }
