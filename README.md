@@ -60,6 +60,16 @@ xc build
 
 ## Usage
 
+### Quick Demo
+
+Try PCP immediately with a built-in demonstration:
+
+```bash
+pcp demo
+```
+
+This creates sample files and shows you exactly how PCP works with real examples.
+
 ### Basic Usage
 
 ```bash
